@@ -1,4 +1,4 @@
-FROM golang:1.13.8-alpine3.11 as build
+FROM golang:1.17-alpine3.13 as build
 
 RUN echo "@edge http://dl-cdn.alpinelinux.org/alpine/edge/main" >> /etc/apk/repositories
 RUN echo "@edgecommunity http://dl-cdn.alpinelinux.org/alpine/edge/community" >> /etc/apk/repositories
@@ -9,7 +9,7 @@ ADD . /src/prometheus-kafka-adapter
 
 RUN go build -o /prometheus-kafka-adapter
 
-FROM alpine:3.11
+FROM alpine:3.13
 
 RUN echo "@edge http://dl-cdn.alpinelinux.org/alpine/edge/main" >> /etc/apk/repositories && \
     echo "@edgecommunity http://dl-cdn.alpinelinux.org/alpine/edge/community" >> /etc/apk/repositories && \
