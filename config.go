@@ -32,6 +32,7 @@ var (
 		Partition: kafka.PartitionAny,
 	}
 	kafkaCompression       = "none"
+	kafkaBufferMaxMessages = "100000"
 	kafkaBatchNumMessages  = "10000"
 	kafkaSslClientCertFile = ""
 	kafkaSslClientKeyFile  = ""
@@ -73,6 +74,10 @@ func init() {
 
 	if value := os.Getenv("KAFKA_COMPRESSION"); value != "" {
 		kafkaCompression = value
+	}
+
+	if value := os.Getenv("KAFKA_QUEUE_BUFFERING_MAX_MESSAGES"); value != "" {
+		kafkaBufferMaxMessages = value
 	}
 
 	if value := os.Getenv("KAFKA_BATCH_NUM_MESSAGES"); value != "" {
