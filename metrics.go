@@ -14,14 +14,12 @@
 
 package main
 
-import "github.com/prometheus/client_golang/prometheus"
+import (
+	"github.com/confluentinc/confluent-kafka-go/kafka"
+	"github.com/prometheus/client_golang/prometheus"
+)
 
 var (
-	queueSize = prometheus.NewGauge(
-		prometheus.GaugeOpts{
-			Name: "kafka_queue_size",
-			Help: "Queue size for metrics sent to Kafka",
-		})
 	httpRequestsTotal = prometheus.NewCounter(
 		prometheus.CounterOpts{
 			Name: "http_requests_total",
@@ -29,7 +27,13 @@ var (
 		})
 )
 
-func init() {
-	prometheus.MustRegister(queueSize)
+func initMetrics(producer *kafka.Producer) {
+	prometheus.MustRegister(prometheus.NewGaugeFunc(
+		prometheus.GaugeOpts{
+			Name: "kafka_queue_size",
+			Help: "Queue size for metrics sent to Kafka",
+		},
+		func() float64 { return float64(producer.Len()) },
+	))
 	prometheus.MustRegister(httpRequestsTotal)
 }
