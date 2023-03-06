@@ -120,11 +120,21 @@ func topic(labels map[string]string) string {
 	if err := topicTemplate.Execute(&buf, labels); err != nil {
 		return ""
 	}
-	for _, s := range kafkaPartitionLabels {
-		v, ok := labels[s]
-		if ok {
-			if _, err := buf2.WriteString(v); err != nil {
+
+	// hashes all labels when no specific labels are configured
+	if kafkaPartitionLabels == nil {
+		for k, v := range labels {
+			if _, err := buf2.WriteString(k + v); err != nil {
 				return ""
+			}
+		}
+	} else {
+		for _, s := range kafkaPartitionLabels {
+			v, ok := labels[s]
+			if ok {
+				if _, err := buf2.WriteString(v); err != nil {
+					return ""
+				}
 			}
 		}
 	}
