@@ -15,6 +15,7 @@
 package main
 
 import (
+	"fmt"
 	"io/ioutil"
 	"net/http"
 
@@ -54,23 +55,33 @@ func receiveHandler(producer *kafka.Producer, serializer Serializer) func(c *gin
 			return
 		}
 
-		metrics, err := processWriteRequest(&req)
+		metricsPerTopic, err := processWriteRequest(&req)
 		if err != nil {
 			c.AbortWithStatus(http.StatusInternalServerError)
 			logrus.WithError(err).Error("couldn't process write request")
 			return
 		}
 
-		for _, metric := range metrics {
-			err := producer.Produce(&kafka.Message{
-				TopicPartition: kafkaPartition,
-				Value:          metric,
-			}, nil)
+		for topic, metrics := range metricsPerTopic {
+			t := topic
+			part := kafka.TopicPartition{
+				Partition: kafka.PartitionAny,
+				Topic:     &t,
+			}
+			for _, metric := range metrics {
+				objectsWritten.Add(float64(1))
+				err := producer.Produce(&kafka.Message{
+					TopicPartition: part,
+					Value:          metric,
+				}, nil)
 
-			if err != nil {
-				c.AbortWithStatus(http.StatusInternalServerError)
-				logrus.WithError(err).Error("couldn't produce message in kafka")
-				return
+				if err != nil {
+					objectsFailed.Add(float64(1))
+					c.AbortWithStatus(http.StatusInternalServerError)
+					logrus.WithError(err).Debug(fmt.Sprintf("Failing metric %v", metric))
+					logrus.WithError(err).Error(fmt.Sprintf("couldn't produce message in kafka topic %v", topic))
+					return
+				}
 			}
 		}
 
