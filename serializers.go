@@ -15,6 +15,7 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
 	"io/ioutil"
 	"strconv"
@@ -33,8 +34,9 @@ type Serializer interface {
 }
 
 // Serialize generates the JSON representation for a given Prometheus metric.
-func Serialize(s Serializer, req *prompb.WriteRequest) ([][]byte, error) {
-	result := [][]byte{}
+func Serialize(s Serializer, req *prompb.WriteRequest) (map[string][][]byte, error) {
+	promBatches.Add(float64(1))
+	result := make(map[string][][]byte)
 
 	for _, ts := range req.Timeseries {
 		labels := make(map[string]string, len(ts.Labels))
@@ -43,22 +45,30 @@ func Serialize(s Serializer, req *prompb.WriteRequest) ([][]byte, error) {
 			labels[string(model.LabelName(l.Name))] = string(model.LabelValue(l.Value))
 		}
 
-		for _, sample := range ts.Samples {
-			epoch := time.Unix(sample.Timestamp/1000, 0).UTC()
+		t := topic(labels)
 
+		for _, sample := range ts.Samples {
+			name := string(labels["__name__"])
+			if !filter(name, labels) {
+				objectsFiltered.Add(float64(1))
+				continue
+			}
+
+			epoch := time.Unix(sample.Timestamp/1000, 0).UTC()
 			m := map[string]interface{}{
 				"timestamp": epoch.Format(time.RFC3339),
 				"value":     strconv.FormatFloat(sample.Value, 'f', -1, 64),
-				"name":      string(labels["__name__"]),
+				"name":      name,
 				"labels":    labels,
 			}
 
 			data, err := s.Marshal(m)
 			if err != nil {
+				serializeFailed.Add(float64(1))
 				logrus.WithError(err).Errorln("couldn't marshal timeseries")
 			}
-
-			result = append(result, data)
+			serializeTotal.Add(float64(1))
+			result[t] = append(result[t], data)
 		}
 	}
 
@@ -103,4 +113,42 @@ func NewAvroJSONSerializer(schemaPath string) (*AvroJSONSerializer, error) {
 	return &AvroJSONSerializer{
 		codec: codec,
 	}, nil
+}
+
+func topic(labels map[string]string) string {
+	var buf bytes.Buffer
+	if err := topicTemplate.Execute(&buf, labels); err != nil {
+		return ""
+	}
+	return buf.String()
+}
+
+func filter(name string, labels map[string]string) bool {
+	if len(match) == 0 {
+		return true
+	}
+	mf, ok := match[name]
+	if !ok {
+		return false
+	}
+
+	for _, m := range mf.Metric {
+		if len(m.Label) == 0 {
+			return true
+		}
+
+		labelMatch := true
+		for _, label := range m.Label {
+			val, ok := labels[label.GetName()]
+			if !ok || val != label.GetValue() {
+				labelMatch = false
+				break
+			}
+		}
+
+		if labelMatch {
+			return true
+		}
+	}
+	return false
 }

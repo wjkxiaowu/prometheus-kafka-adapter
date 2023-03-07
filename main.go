@@ -18,31 +18,49 @@ import (
 	"time"
 
 	"github.com/confluentinc/confluent-kafka-go/kafka"
-	"github.com/containous/traefik/log"
 	"github.com/gin-gonic/contrib/ginrus"
 	"github.com/gin-gonic/gin"
-	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/sirupsen/logrus"
 )
 
 func main() {
-	log.Info("creating kafka producer")
+	logrus.Info("creating kafka producer")
 
 	kafkaConfig := kafka.ConfigMap{
 		"bootstrap.servers":            kafkaBrokerList,
 		"compression.codec":            kafkaCompression,
 		"batch.num.messages":           kafkaBatchNumMessages,
 		"queue.buffering.max.messages": kafkaBufferMaxMessages,
-		"go.batch.producer":            true,                   // Enable batch producer (for increased performance).
-		"go.delivery.reports":          false,                  // per-message delivery reports to the Events() channel
-		"ssl.ca.location":              kafkaSslCACertFile,     // CA certificate file for verifying the broker's certificate.
-		"ssl.certificate.location":     kafkaSslClientCertFile, // Client's certificate
-		"ssl.key.location":             kafkaSslClientKeyFile,  // Client's key
-		"ssl.key.password":             kafkaSslClientKeyPass,  // Key password, if any.
+		"go.batch.producer":            true,  // Enable batch producer (for increased performance).
+		"go.delivery.reports":          false, // per-message delivery reports to the Events() channel
 	}
 
 	if kafkaSslClientCertFile != "" && kafkaSslClientKeyFile != "" && kafkaSslCACertFile != "" {
-		kafkaConfig["security.protocol"] = "ssl"
+		if kafkaSecurityProtocol == "" {
+			kafkaSecurityProtocol = "ssl"
+		}
+
+		if kafkaSecurityProtocol != "ssl" && kafkaSecurityProtocol != "sasl_ssl" {
+			logrus.Fatal("invalid config: kafka security protocol is not ssl based but ssl config is provided")
+		}
+
+		kafkaConfig["security.protocol"] = kafkaSecurityProtocol
+		kafkaConfig["ssl.ca.location"] = kafkaSslCACertFile              // CA certificate file for verifying the broker's certificate.
+		kafkaConfig["ssl.certificate.location"] = kafkaSslClientCertFile // Client's certificate
+		kafkaConfig["ssl.key.location"] = kafkaSslClientKeyFile          // Client's key
+		kafkaConfig["ssl.key.password"] = kafkaSslClientKeyPass          // Key password, if any.
+	}
+
+	if kafkaSaslMechanism != "" && kafkaSaslUsername != "" && kafkaSaslPassword != "" {
+		if kafkaSecurityProtocol != "sasl_ssl" && kafkaSecurityProtocol != "sasl_plaintext" {
+			logrus.Fatal("invalid config: kafka security protocol is not sasl based but sasl config is provided")
+		}
+
+		kafkaConfig["security.protocol"] = kafkaSecurityProtocol
+		kafkaConfig["sasl.mechanism"] = kafkaSaslMechanism
+		kafkaConfig["sasl.username"] = kafkaSaslUsername
+		kafkaConfig["sasl.password"] = kafkaSaslPassword
 	}
 
 	producer, err := kafka.NewProducer(&kafkaConfig)
@@ -56,8 +74,8 @@ func main() {
 	r.Use(ginrus.Ginrus(logrus.StandardLogger(), time.RFC3339, true), gin.Recovery())
 
 	initMetrics(producer)
-	r.GET("/metrics", gin.WrapH(prometheus.UninstrumentedHandler()))
-
+	r.GET("/metrics", gin.WrapH(promhttp.Handler()))
+	r.GET("/healthz", func(c *gin.Context) { c.JSON(200, gin.H{"status": "UP"}) })
 	if basicauth {
 		authorized := r.Group("/", gin.BasicAuth(gin.Accounts{
 			basicauthUsername: basicauthPassword,
@@ -67,5 +85,5 @@ func main() {
 		r.POST("/receive", receiveHandler(producer, serializer))
 	}
 
-	r.Run()
+	logrus.Fatal(r.Run())
 }

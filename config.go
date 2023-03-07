@@ -15,22 +15,25 @@
 package main
 
 import (
+	"fmt"
+	dto "github.com/prometheus/client_model/go"
+	"github.com/prometheus/common/expfmt"
+	"gopkg.in/yaml.v2"
 	"os"
+	"strings"
+	"text/template"
 
-	"github.com/confluentinc/confluent-kafka-go/kafka"
 	"github.com/sirupsen/logrus"
 )
 
 var (
-	kafkaBrokerList   = "kafka:9092"
-	kafkaTopic        = "metrics"
-	basicauth         = false
-	basicauthUsername = ""
-	basicauthPassword = ""
-	kafkaPartition    = kafka.TopicPartition{
-		Topic:     &kafkaTopic,
-		Partition: kafka.PartitionAny,
-	}
+	kafkaBrokerList        = "kafka:9092"
+	kafkaTopic             = "metrics"
+	topicTemplate          *template.Template
+	match                  = make(map[string]*dto.MetricFamily, 0)
+	basicauth              = false
+	basicauthUsername      = ""
+	basicauthPassword      = ""
 	kafkaCompression       = "none"
 	kafkaBufferMaxMessages = "100000"
 	kafkaBatchNumMessages  = "10000"
@@ -38,7 +41,10 @@ var (
 	kafkaSslClientKeyFile  = ""
 	kafkaSslClientKeyPass  = ""
 	kafkaSslCACertFile     = ""
-	kafkaSslValidation     = true
+	kafkaSecurityProtocol  = ""
+	kafkaSaslMechanism     = ""
+	kafkaSaslUsername      = ""
+	kafkaSaslPassword      = ""
 	serializer             Serializer
 )
 
@@ -56,11 +62,6 @@ func init() {
 
 	if value := os.Getenv("KAFKA_TOPIC"); value != "" {
 		kafkaTopic = value
-
-		kafkaPartition = kafka.TopicPartition{
-			Topic:     &kafkaTopic,
-			Partition: kafka.PartitionAny,
-		}
 	}
 
 	if value := os.Getenv("BASIC_AUTH_USERNAME"); value != "" {
@@ -100,11 +101,61 @@ func init() {
 		kafkaSslCACertFile = value
 	}
 
+	if value := os.Getenv("KAFKA_SECURITY_PROTOCOL"); value != "" {
+		kafkaSecurityProtocol = strings.ToLower(value)
+	}
+
+	if value := os.Getenv("KAFKA_SASL_MECHANISM"); value != "" {
+		kafkaSaslMechanism = value
+	}
+
+	if value := os.Getenv("KAFKA_SASL_USERNAME"); value != "" {
+		kafkaSaslUsername = value
+	}
+
+	if value := os.Getenv("KAFKA_SASL_PASSWORD"); value != "" {
+		kafkaSaslPassword = value
+	}
+
+	if value := os.Getenv("MATCH"); value != "" {
+		matchList, err := parseMatchList(value)
+		if err != nil {
+			logrus.WithError(err).Fatalln("couldn't parse the match rules")
+		}
+		match = matchList
+	}
+
 	var err error
 	serializer, err = parseSerializationFormat(os.Getenv("SERIALIZATION_FORMAT"))
 	if err != nil {
 		logrus.WithError(err).Fatalln("couldn't create a metrics serializer")
 	}
+
+	topicTemplate, err = parseTopicTemplate(kafkaTopic)
+	if err != nil {
+		logrus.WithError(err).Fatalln("couldn't parse the topic template")
+	}
+}
+
+func parseMatchList(text string) (map[string]*dto.MetricFamily, error) {
+	var matchRules []string
+	err := yaml.Unmarshal([]byte(text), &matchRules)
+	if err != nil {
+		return nil, err
+	}
+	var metricsList []string
+	for _, v := range matchRules {
+		metricsList = append(metricsList, fmt.Sprintf("%s 0\n", v))
+	}
+
+	metricsText := strings.Join(metricsList, "")
+
+	var parser expfmt.TextParser
+	metricFamilies, err := parser.TextToMetricFamilies(strings.NewReader(metricsText))
+	if err != nil {
+		return nil, fmt.Errorf("couldn't parse match rules: %s", err)
+	}
+	return metricFamilies, nil
 }
 
 func parseLogLevel(value string) logrus.Level {
@@ -128,4 +179,25 @@ func parseSerializationFormat(value string) (Serializer, error) {
 		logrus.WithField("serialization-format-value", value).Warningln("invalid serialization format, using json")
 		return NewJSONSerializer()
 	}
+}
+
+func parseTopicTemplate(tpl string) (*template.Template, error) {
+	funcMap := template.FuncMap{
+		"replace": func(old, new, src string) string {
+			return strings.Replace(src, old, new, -1)
+		},
+		"substring": func(start, end int, s string) string {
+			if start < 0 {
+				start = 0
+			}
+			if end < 0 || end > len(s) {
+				end = len(s)
+			}
+			if start >= end {
+				panic("template function - substring: start is bigger (or equal) than end. That will produce an empty string.")
+			}
+			return s[start:end]
+		},
+	}
+	return template.New("topic").Funcs(funcMap).Parse(tpl)
 }

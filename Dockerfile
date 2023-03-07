@@ -1,21 +1,16 @@
-FROM golang:1.17-alpine3.13 as build
-
-RUN echo "@edge http://dl-cdn.alpinelinux.org/alpine/edge/main" >> /etc/apk/repositories
-RUN echo "@edgecommunity http://dl-cdn.alpinelinux.org/alpine/edge/community" >> /etc/apk/repositories
-RUN apk add --no-cache alpine-sdk 'librdkafka@edgecommunity>=1.3.0' 'librdkafka-dev@edgecommunity>=1.3.0'
-
+FROM golang:1.19.1-alpine as build
 WORKDIR /src/prometheus-kafka-adapter
+
+COPY go.mod go.sum vendor *.go ./
+
 ADD . /src/prometheus-kafka-adapter
 
-RUN go build -o /prometheus-kafka-adapter
+RUN apk add --no-cache gcc musl-dev
+RUN go build -ldflags='-w -s -extldflags "-static"' -tags musl,static,netgo -mod=vendor -o /prometheus-kafka-adapter
 
-FROM alpine:3.13
+FROM alpine:3.16
 
-RUN echo "@edge http://dl-cdn.alpinelinux.org/alpine/edge/main" >> /etc/apk/repositories && \
-    echo "@edgecommunity http://dl-cdn.alpinelinux.org/alpine/edge/community" >> /etc/apk/repositories && \
-    apk add --no-cache 'librdkafka@edgecommunity>=1.3.0'
-
-COPY --from=build /src/prometheus-kafka-adapter/schemas/metric.avsc /schemas/metric.avsc
+COPY schemas/metric.avsc /schemas/metric.avsc
 COPY --from=build /prometheus-kafka-adapter /
 
 CMD /prometheus-kafka-adapter

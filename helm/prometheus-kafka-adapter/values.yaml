@@ -6,7 +6,7 @@ replicaCount: 1
 
 image:
   repository: telefonica/prometheus-kafka-adapter
-  tag: 1.4.1
+  tag: 1.8.0
   pullPolicy: IfNotPresent
 
 imagePullSecrets: []
@@ -24,6 +24,12 @@ pod:
 KAFKA_SSL_CLIENT_CERT:
 KAFKA_SSL_CLIENT_KEY:
 KAFKA_SSL_CA_CERT:
+
+# When deployed in a K8s cluster and using an external Kafka it might be necessary to define the kafka host here (fill the /etc/hosts of the container)
+# hostAliases:
+#  - ip: ""
+#    hostnames:
+#    - ""
 
 environment:
   # defines kafka endpoint and port, defaults to kafka:9092.
@@ -59,6 +65,8 @@ environment:
   # Kafka SSL broker CA certificate file, defaults to "/ca_cert/ssl_ca_cert.pem" if
   # KAFKA_SSL_CA_CERT is provided, "" otherwise
   KAFKA_SSL_CA_CERT_FILE:
+  # defines the match rules, simple metric name match and label match
+  MATCH:
 
 serviceAccount:
   # Specifies whether a service account should be created
@@ -79,6 +87,9 @@ securityContext: {}
   # runAsUser: 1000
 
 service:
+  # To define a NodePort, overload in a custom values file
+  #   type: NodePort
+  #   nodeport: <value>
   type: ClusterIP
   port: 80
   annotations: {}
