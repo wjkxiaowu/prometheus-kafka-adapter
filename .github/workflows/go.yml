@@ -2,9 +2,13 @@ name: Go
 
 on:
   push:
-    branches: [ master ]
+    branches:
+    - infoblox
+    - master
   pull_request:
-    branches: [ master ]
+    branches:
+    - infoblox
+    - master
 
 jobs:
 
