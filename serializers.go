@@ -116,9 +116,31 @@ func NewAvroJSONSerializer(schemaPath string) (*AvroJSONSerializer, error) {
 }
 
 func topic(labels map[string]string) string {
-	var buf bytes.Buffer
+	var buf, buf2 bytes.Buffer
 	if err := topicTemplate.Execute(&buf, labels); err != nil {
 		return ""
+	}
+
+	// hashes all labels when no specific labels are configured
+	if kafkaPartitionLabels == nil {
+		for k, v := range labels {
+			if _, err := buf2.WriteString(k + v); err != nil {
+				return ""
+			}
+		}
+	} else {
+		for _, s := range kafkaPartitionLabels {
+			v, ok := labels[s]
+			if ok {
+				if _, err := buf2.WriteString(v); err != nil {
+					return ""
+				}
+			}
+		}
+	}
+	if buf2.Len() > 0 {
+		buf.WriteString("|")
+		buf.WriteString(buf2.String())
 	}
 	return buf.String()
 }
