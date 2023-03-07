@@ -2,6 +2,7 @@ package main
 
 import (
 	"math"
+	"strings"
 	"testing"
 
 	"github.com/prometheus/prometheus/prompb"
@@ -42,7 +43,7 @@ func TestSerializeToJSON(t *testing.T) {
 
 	writeRequest := NewWriteRequest()
 	output, err := Serialize(serializer, writeRequest)
-	assert.Len(t, output["metrics"], 2)
+	assert.Len(t, output["metrics|__name__foolabelfoolabel-bar"], 2)
 	assert.Nil(t, err)
 
 	expectedSamples := []string{
@@ -50,7 +51,7 @@ func TestSerializeToJSON(t *testing.T) {
 		"{\"value\":\"+Inf\",\"timestamp\":\"1970-01-01T00:00:10Z\",\"name\":\"foo\",\"labels\":{\"__name__\":\"foo\",\"labelfoo\":\"label-bar\"}}",
 	}
 
-	for i, metric := range output["metrics"] {
+	for i, metric := range output["metrics|__name__foolabelfoolabel-bar"] {
 		assert.JSONEqf(t, expectedSamples[i], string(metric[:]), "wrong json serialization found")
 	}
 }
@@ -72,7 +73,7 @@ func TestSerializeToAvro(t *testing.T) {
 
 	writeRequest := NewWriteRequest()
 	output, err := Serialize(serializer, writeRequest)
-	assert.Len(t, output["metrics"], 2)
+	assert.Len(t, output["metrics|__name__foolabelfoolabel-bar"], 2)
 	assert.Nil(t, err)
 
 	expectedSamples := []string{
@@ -80,7 +81,7 @@ func TestSerializeToAvro(t *testing.T) {
 		"{\"value\":\"+Inf\",\"timestamp\":\"1970-01-01T00:00:10Z\",\"name\":\"foo\",\"labels\":{\"__name__\":\"foo\",\"labelfoo\":\"label-bar\"}}",
 	}
 
-	for i, metric := range output["metrics"] {
+	for i, metric := range output["metrics|__name__foolabelfoolabel-bar"] {
 		assert.JSONEqf(t, expectedSamples[i], string(metric[:]), "wrong json serialization found")
 	}
 }
@@ -94,9 +95,11 @@ func TestTemplatedTopic(t *testing.T) {
 
 	writeRequest := NewWriteRequest()
 	output, err := Serialize(serializer, writeRequest)
+	assert.Nil(t, err)
 
 	for k := range output {
-		assert.Equal(t, "foo", k, "templated topic failed")
+		parts := strings.Split(k, "|")
+		assert.Equal(t, "foo", parts[0], "templated topic failed")
 	}
 }
 
