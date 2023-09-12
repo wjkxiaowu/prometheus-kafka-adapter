@@ -57,12 +57,22 @@ github.com/golang/protobuf/ptypes/timestamp
 # github.com/golang/snappy v0.0.4
 ## explicit
 github.com/golang/snappy
+# github.com/jonboulle/clockwork v0.4.0
+## explicit; go 1.15
 # github.com/json-iterator/go v1.1.12
 ## explicit; go 1.12
 github.com/json-iterator/go
 # github.com/leodido/go-urn v1.2.1
 ## explicit; go 1.13
 github.com/leodido/go-urn
+# github.com/lestrrat-go/file-rotatelogs v2.4.0+incompatible
+## explicit
+github.com/lestrrat-go/file-rotatelogs
+github.com/lestrrat-go/file-rotatelogs/internal/option
+# github.com/lestrrat-go/strftime v1.0.6
+## explicit; go 1.13
+github.com/lestrrat-go/strftime
+github.com/lestrrat-go/strftime/internal/errors
 # github.com/linkedin/goavro v2.1.0+incompatible
 ## explicit
 github.com/linkedin/goavro
@@ -84,6 +94,9 @@ github.com/pelletier/go-toml/v2
 github.com/pelletier/go-toml/v2/internal/ast
 github.com/pelletier/go-toml/v2/internal/danger
 github.com/pelletier/go-toml/v2/internal/tracker
+# github.com/pkg/errors v0.9.1
+## explicit
+github.com/pkg/errors
 # github.com/pmezard/go-difflib v1.0.0
 ## explicit
 github.com/pmezard/go-difflib/difflib
@@ -108,6 +121,9 @@ github.com/prometheus/procfs/internal/util
 # github.com/prometheus/prometheus v0.38.0
 ## explicit; go 1.17
 github.com/prometheus/prometheus/prompb
+# github.com/rifflock/lfshook v0.0.0-20180920164130-b9218ef580f5
+## explicit
+github.com/rifflock/lfshook
 # github.com/sirupsen/logrus v1.9.0
 ## explicit; go 1.13
 github.com/sirupsen/logrus
@@ -117,6 +133,9 @@ github.com/stretchr/testify/assert
 # github.com/ugorji/go/codec v1.2.7
 ## explicit; go 1.11
 github.com/ugorji/go/codec
+# github.com/wjkxiaowu/kylogr v0.0.0-20230829092347-5884b1342410
+## explicit
+github.com/wjkxiaowu/kylogr
 # golang.org/x/crypto v0.0.0-20220722155217-630584e8d5aa
 ## explicit; go 1.17
 golang.org/x/crypto/sha3
